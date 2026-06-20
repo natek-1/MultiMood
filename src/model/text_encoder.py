@@ -11,14 +11,15 @@ class TextEncoder(nn.Module):
     Args:
         freeze (bool): Whether to freeze the BERT model (default: True).
     '''
+    BERT_DIM = 768
     
-    def __init__(self, freeze=True):
+    def __init__(self, freeze=True, out_dim = 128):
         super().__init__()
         self.bert = BertModel.from_pretrained('bert-base-uncased')
 
         if freeze:
             self._freeze_bert()
-        self.projection = nn.Linear(768, 128)
+        self.projection = nn.Linear(self.BERT_DIM, out_dim)
     
 
     def _freeze_bert(self):
