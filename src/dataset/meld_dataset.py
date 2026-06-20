@@ -1,12 +1,16 @@
 import os
-from typing import Dict
+from pathlib import Path
+from typing import Dict, Tuple
+import subprocess
 
 import pandas as pd
 import numpy as np
 from tqdm import tqdm
 import cv2
 import torch
-from torch.utils.data import Dataset
+import torchaudio
+from torch.utils.data.dataloader import default_collate
+from torch.utils.data import Dataset, DataLoader
 
 from transformers import AutoTokenizer, BertTokenizer
 
@@ -15,40 +19,40 @@ from transformers import AutoTokenizer, BertTokenizer
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 class MELDDataset(Dataset):
-    '''
+    """
     MELD Dataset class.
 
     Args:
         csv_path (str): Path to the CSV file containing the dataset.
         video_dir (str): Directory containing the video files.
-    '''
+    """
 
     def __init__(self, csv_path : str, video_dir : str):
         self.data : pd.DataFrame = pd.read_csv(csv_path)
         self.video_dir : str = video_dir
-        self.tokenizer : BertTokenizer = AutoTokenizer.from_pretrained('bert-base-uncased')
+        self.tokenizer : BertTokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
 
         self.emotion_map : Dict[str, int] = {
-            'anger': 0,
-            'disgust': 1,
-            'fear': 2,
-            'joy': 3,
-            'neutral': 4,
-            'sadness': 5,
-            'surprise': 6
+            "anger": 0,
+            "disgust": 1,
+            "fear": 2,
+            "joy": 3,
+            "neutral": 4,
+            "sadness": 5,
+            "surprise": 6
         }
 
         self.sentiment_map : Dict[str, int] = {
-            'negative': 0,
-            'neutral': 1,
-            'positive': 2
+            "negative": 0,
+            "neutral": 1,
+            "positive": 2
         }
     
     def __len__(self):
         return len(self.data)
 
-    def _load_video_frames(self, video_path, max_frames = 30, size=(244, 244)) -> torch.Tensor:
-        '''
+    def _load_video_frames(self, video_path: str, max_frames : int = 30, size : Tuple =(244, 244)) -> torch.Tensor:
+        """
         Load video frames from the given video path.
 
         Args:
@@ -58,7 +62,7 @@ class MELDDataset(Dataset):
         
         Returns:
             torch.Tensor: Tensor of shape (num_frames, height, width, color_channels).
-        '''
+        """
 
         cap = cv2.VideoCapture(video_path)
         frames = []
@@ -97,43 +101,177 @@ class MELDDataset(Dataset):
 
         # torch processes images as (num_frames, color_channels, height, width)
         return torch.FloatTensor(frames).permute(0, 3, 1, 2)
+    
+    def _extract_audio_features(self, video_path: str, rate: int = 16000,
+                                n_mels: int = 64, n_fft: int = 1024, hop_length: int = 512,
+                                normalize: bool =True, max_size : int = 300) -> torch.Tensor:
+        '''
+        Extract audio features from the given video path.
 
-    def __getitem__(self, idx: int):
+        Args:
+            video_path (str): Path to the video file.
+            rate (int): Sample rate of the audio (default: 16000).
+            n_mels (int): Number of Mel bands (default: 64).
+            n_fft (int): Number of FFT points (default: 1024).
+            hop_length (int): Number of hop points (default: 512).
+            normalize (bool): Whether to normalize the audio features (default: True).
+            max_size (int): Maximum size of the audio features (default: 300).
+        
+        Returns:
+            torch.Tensor: Tensor of shape (1, n_mels, max_size).
+        '''
+        audio_path = video_path.replace(".mp4", ".wav")
+
+        try:
+            subprocess.run([
+                "ffmpeg",
+                "-i", video_path,
+                "-vn", # no video output
+                "-acodec", "pcm_s16le",
+                "-ar", str(rate), # sample rate
+                '-ac', '1', # monoaudio
+                audio_path # output path
+            ], check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL)
+
+            waveform, sample_rate = torchaudio.load(audio_path)
+
+            if sample_rate != rate:
+                resampler = torchaudio.transforms.Resample(sample_rate, rate)
+                waveform = resampler(waveform)
+            
+            mel_spectogram = torchaudio.transforms.MelSpectrogram(
+                sample_rate=rate,
+                n_mels=n_mels,
+                n_fft=n_fft,
+                hop_length=hop_length
+            )
+            # shape (1, n_mels, time)
+            mel_spec : torch.Tensor = mel_spectogram(waveform)
+
+            if normalize:
+                mel_spec = (mel_spec - mel_spec.mean())/mel_spec.std()
+            
+            if mel_spec.size(2) < max_size:
+                padding = max_size - mel_spec.size(2)
+                mel_spec = torch.nn.functional.pad(mel_spec, (0, padding))
+            else:
+                mel_spec = mel_spec[:, :, :max_size]
+
+            return mel_spec
+        except subprocess.CalledProcessError as e:
+            raise ValueError(f"Audio extraction error: {str(e)}")
+        except Exception as e:
+            raise ValueError(f"Audio Error: {str(e)}")
+        finally:
+            if os.path.exists(audio_path):
+                os.remove(audio_path)
+
+
+
+
+    def __getitem__(self, idx: int | torch.Tensor) -> Dict[str, torch.Tensor | Dict[str, torch.Tensor]] | None:
+        if isinstance(idx, torch.Tensor):
+            idx = int(idx.item())
         row = self.data.iloc[idx]
-        dia_id = row['Dialogue_ID']
-        utt_id = row['Utterance_ID'] 
-        video_filename = f"dia{dia_id}_utt{utt_id}.mp4"
-        video_path = os.path.join(self.video_dir, video_filename)
+        try:
+            dia_id = row["Dialogue_ID"]
+            utt_id = row["Utterance_ID"] 
+            video_filename = f"dia{dia_id}_utt{utt_id}.mp4"
+            video_path = os.path.join(self.video_dir, video_filename)
 
-        if not os.path.exists(video_path):
-            raise FileNotFoundError(
-                f"No video found for the path {video_path}"
+            if not os.path.exists(video_path):
+                raise FileNotFoundError(
+                    f"No video found for the path {video_path}"
+                )
+
+            text = self.tokenizer(row["Utterance"], padding="max_length",
+                                truncation=True, max_length=128, return_tensors="np")
+            input_ids: torch.Tensor = torch.tensor(text["input_ids"])
+            attention_mask: torch.Tensor = torch.tensor(text["attention_mask"])
+            
+
+            video_frames: torch.Tensor = self._load_video_frames(video_path)
+            audio_features = self._extract_audio_features(video_path)
+            
+            # map sentiment and emotion
+            emotion_label = torch.tensor(
+                self.emotion_map[row['Emotion'].lower()]
+            )
+            sentiment_label = torch.tensor(
+                self.sentiment_map[row['Sentiment'].lower()]
             )
 
-        text = self.tokenizer(row['Utterance'], padding='max_length',
-                              truncation=True, max_length=128, return_tensors='np')
-        input_ids: torch.Tensor = torch.tensor(text['input_ids'])
-        attention_mask: torch.Tensor = torch.tensor(text['attention_mask'])
+            return {
+                'text_inputs': {
+                    'input_ids': input_ids.squeeze(),
+                    'attention_mask': attention_mask.squeeze()
+                },
+                'video_frames': video_frames,
+                'audio_features': audio_features,
+                'emotion_label': emotion_label,
+                'sentiment_label': sentiment_label
+            }
+        except Exception as e:
+            print(f"Error processing {idx}: {str(e)}")
+            return None
+
+
         
 
-        video_frames: torch.Tensor = self._load_video_frames(video_path)
-        assert video_frames.shape[0] == 30
+def collate_fn(batch):
+    batch = list(filter(None, batch))
+    return default_collate(batch)
 
-        
+
+def prepare_dataloader(train_csv, train_video_dir,
+                       dev_csv, dev_video_dir,
+                       test_csv, test_video_dir, batch_size=32):
+    train_dataset = MELDDataset(train_csv, train_video_dir)
+    dev_dataset = MELDDataset(dev_csv, dev_video_dir)
+    test_dataset = MELDDataset(test_csv, test_video_dir)
+
+    train_loader = DataLoader(train_dataset,
+                              batch_size=batch_size,
+                              shuffle=True,
+                              collate_fn=collate_fn)
+
+    dev_loader = DataLoader(dev_dataset,
+                            batch_size=batch_size,
+                            collate_fn=collate_fn)
+
+    test_loader = DataLoader(test_dataset,
+                             batch_size=batch_size,
+                             collate_fn=collate_fn)
+
+    return train_loader, dev_loader, test_loader
+
 
 
     
 
 
 if __name__ == "__main__":
-    datasets = [("meld_dataset/dev/dev_sent_emo.csv", "meld_dataset/dev/dev_splits_complete"),
-                ("meld_dataset/test/test_sent_emo.csv", "meld_dataset/test/output_repeated_splits_test"),
-                ("meld_dataset/train/train_sent_emo.csv", "meld_dataset/train/train_splits")]
-    csv_path, frames_dir = datasets[2]
-    dataset = MELDDataset(csv_path, frames_dir)
-    for idx in tqdm(range(1160, len(dataset)), total=len(dataset)-1160, leave=False):
-        if idx in (1084, 1165): continue
-        dataset[idx]
+    datasets = [
+            ("meld_dataset/train/train_sent_emo.csv", "meld_dataset/train/train_splits"),
+            ("meld_dataset/dev/dev_sent_emo.csv", "meld_dataset/dev/dev_splits_complete"),
+            ("meld_dataset/test/test_sent_emo.csv", "meld_dataset/test/output_repeated_splits_test"),
+        ]
+    train_loader, dev_loader, test_loader = prepare_dataloader(
+        datasets[0][0], datasets[0][1],
+        datasets[1][0], datasets[1][1],
+        datasets[2][0], datasets[2][1]
+    )
+
+    for batch in train_loader:
+        print(batch['text_inputs'])
+        print(batch['video_frames'].shape)
+        print(batch['audio_features'].shape)
+        print(batch['emotion_label'])
+        print(batch['sentiment_label'])
+        break
+
 
     
 
