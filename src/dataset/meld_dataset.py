@@ -171,7 +171,7 @@ class MELDDataset(Dataset):
 
 
 
-    def __getitem__(self, idx: int | torch.Tensor) -> Dict[str, torch.Tensor | Dict[str, torch.Tensor]] | None:
+    def __getitem__(self, idx: int | torch.Tensor) -> Dict[str, torch.Tensor] | None:
         if isinstance(idx, torch.Tensor):
             idx = int(idx.item())
         row = self.data.iloc[idx]
@@ -204,10 +204,8 @@ class MELDDataset(Dataset):
             )
 
             return {
-                'text_inputs': {
-                    'input_ids': input_ids.squeeze(),
-                    'attention_mask': attention_mask.squeeze()
-                },
+                'input_ids': input_ids.squeeze(),
+                'attention_mask': attention_mask.squeeze(),
                 'video_frames': video_frames,
                 'audio_features': audio_features,
                 'emotion_label': emotion_label,
@@ -279,7 +277,8 @@ if __name__ == "__main__":
     )
 
     for batch in train_loader:
-        print(batch['text_inputs'])
+        print(batch['input_ids'])
+        print(batch['attention_mask'])
         print(batch['video_frames'].shape)
         print(batch['audio_features'].shape)
         print(batch['emotion_label'])
