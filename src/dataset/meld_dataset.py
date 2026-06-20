@@ -227,7 +227,21 @@ def collate_fn(batch):
 
 def prepare_dataloader(train_csv, train_video_dir,
                        dev_csv, dev_video_dir,
-                       test_csv, test_video_dir, batch_size=32):
+                       test_csv, test_video_dir, batch_size=32) -> Tuple[DataLoader, DataLoader, DataLoader]:
+    '''
+    Prepare dataloader for the MELD dataset.
+    Args:
+        train_csv (str): Path to the training CSV file.
+        train_video_dir (str): Directory containing the training video files.
+        dev_csv (str): Path to the development CSV file.
+        dev_video_dir (str): Directory containing the development video files.
+        test_csv (str): Path to the test CSV file.
+        test_video_dir (str): Directory containing the test video files.
+        batch_size (int): Batch size (default: 32).
+    
+    Returns:
+        Tuple[DataLoader, DataLoader, DataLoader]: Tuple of dataloaders for training, development, and testing.
+    '''
     train_dataset = MELDDataset(train_csv, train_video_dir)
     dev_dataset = MELDDataset(dev_csv, dev_video_dir)
     test_dataset = MELDDataset(test_csv, test_video_dir)
