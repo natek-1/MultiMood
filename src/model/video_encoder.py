@@ -42,23 +42,26 @@ class VideoEncoder(nn.Module):
         Forward pass for the video encoder.
 
         Args:
-            video_tensor (torch.Tensor): Video tensor of shape (batch, time_stamp, channel, height, width).
+            video_tensor (torch.Tensor): Preprocessed video tensor of shape
+            (batch, channel, time_stamp, height, width)
         
         Returns:
-            torch.Tensor: Output of the video encoder.
+            torch.Tensor: Output of the video encoder. (batch, hidden_dim)
         '''
-        video_tensor = self.preprocess(video_tensor)
         video_tensor = self.model(video_tensor)
         return self.post_model(video_tensor)
 
 
 if __name__ == "__main__":
-    dataset = MELDDataset("meld_dataset/dev/dev_sent_emo.csv",
-                          "meld_dataset/dev/dev_splits_complete")
     model = VideoEncoder()
+    dataset = MELDDataset("meld_dataset/dev/dev_sent_emo.csv",
+                          "meld_dataset/dev/dev_splits_complete",
+                          preprocess = model.preprocess)
+    
     for item in dataset:
         if item is not None:
             video_tensor = item['video_frames'].unsqueeze(0)
+            print(video_tensor.shape)
             output = model(video_tensor)
             print(output.shape)
 

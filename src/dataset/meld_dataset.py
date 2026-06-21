@@ -25,12 +25,14 @@ class MELDDataset(Dataset):
     Args:
         csv_path (str): Path to the CSV file containing the dataset.
         video_dir (str): Directory containing the video files.
+        preprocess (callable): Preprocessing function for video frames.
     """
 
-    def __init__(self, csv_path : str, video_dir : str):
+    def __init__(self, csv_path : str, video_dir : str, preprocess=None):
         self.data : pd.DataFrame = pd.read_csv(csv_path)
         self.video_dir : str = video_dir
         self.tokenizer : BertTokenizer = AutoTokenizer.from_pretrained("bert-base-uncased")
+        self.preprocess = preprocess
 
         self.emotion_map : Dict[str, int] = {
             "anger": 0,
@@ -192,7 +194,9 @@ class MELDDataset(Dataset):
             attention_mask: torch.Tensor = torch.tensor(text["attention_mask"])
             
 
-            video_frames: torch.Tensor = self._load_video_frames(video_path)
+            video_frames = self._load_video_frames(video_path)
+            if self.preprocess is not None:
+                video_frames : torch.Tensor = self.preprocess(video_frames)
             audio_features = self._extract_audio_features(video_path)
             
             # map sentiment and emotion
