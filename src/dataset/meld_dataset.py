@@ -120,7 +120,7 @@ class MELDDataset(Dataset):
             max_size (int): Maximum size of the audio features (default: 300).
         
         Returns:
-            torch.Tensor: Tensor of shape (1, n_mels, max_size).
+            torch.Tensor: Tensor of shape (n_mels, max_size).
         '''
         audio_path = video_path.replace(".mp4", ".wav")
 
@@ -142,21 +142,19 @@ class MELDDataset(Dataset):
             if sample_rate != rate:
                 resampler = torchaudio.transforms.Resample(sample_rate, rate)
                 waveform = resampler(waveform)
-            
+            waveform = waveform.squeeze(0)
             mel_spectogram = torchaudio.transforms.MelSpectrogram(
                 sample_rate=rate,
                 n_mels=n_mels,
                 n_fft=n_fft,
                 hop_length=hop_length
             )
-            # shape (1, n_mels, time)
             mel_spec : torch.Tensor = mel_spectogram(waveform)
-
             if normalize:
                 mel_spec = (mel_spec - mel_spec.mean())/mel_spec.std()
             
-            if mel_spec.size(2) < max_size:
-                padding = max_size - mel_spec.size(2)
+            if mel_spec.size(1) < max_size:
+                padding = max_size - mel_spec.size(1)
                 mel_spec = torch.nn.functional.pad(mel_spec, (0, padding))
             else:
                 mel_spec = mel_spec[:, :, :max_size]
