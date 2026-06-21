@@ -13,13 +13,13 @@ class TextEncoder(nn.Module):
     '''
     BERT_DIM = 768
     
-    def __init__(self, freeze=True, out_dim = 128):
+    def __init__(self, freeze=True, hidden_dim = 128):
         super().__init__()
         self.bert = BertModel.from_pretrained('bert-base-uncased')
 
         if freeze:
             self._freeze_bert()
-        self.projection = nn.Linear(self.BERT_DIM, out_dim)
+        self.projection = nn.Linear(self.BERT_DIM, hidden_dim)
     
 
     def _freeze_bert(self):

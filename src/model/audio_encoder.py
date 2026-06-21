@@ -3,6 +3,13 @@ import torch.nn as nn
 
 
 class AudioEncoder(nn.Module):
+    '''
+    Audio encoder module for MELD dataset.
+
+    Args:
+        hidden_dim (int): Dimension of the output of the text encoder (default: 128).
+        dropout_rate (float): Dropout rate (default: 0.2).
+    '''
 
     def __init__(self, hidden_dim = 128, dropout_rate = 0.2):
         super().__init__()
@@ -19,12 +26,21 @@ class AudioEncoder(nn.Module):
         )
 
         self.projection = nn.Sequential(
-            nn.Linear(128, 128),
+            nn.Linear(128, hidden_dim),
             nn.ReLU(),
             nn.Dropout(dropout_rate)
         )
     
     def forward(self, x : torch.Tensor) -> torch.Tensor:
+        '''
+        Forward pass for the audio encoder.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch, n_mels, time).
+        
+        Returns:
+            torch.Tensor: Output of the audio encoder of shape (batch, hidden_dim).
+        '''
         x = self.conv_layers(x)
         return self.projection(x.squeeze(-1))
     
