@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 
@@ -36,16 +37,22 @@ def install_ffmpeg():
         )
         ffmpeg_path = result.stdout.strip()
 
-        subprocess.check_call(["cp", ffmpeg_path, "/usr/local/bin/ffmpeg"])
+        user_bin_dir = os.path.expanduser("~/.local/bin")
+        os.makedirs(user_bin_dir, exist_ok=True)
+        target_path = os.path.join(user_bin_dir, "ffmpeg")
 
-        subprocess.check_call(["chmod", "+x", "/usr/local/bin/ffmpeg"])
+        subprocess.check_call(["cp", ffmpeg_path, target_path])
+
+        subprocess.check_call(["chmod", "+x", target_path])
 
         print("Installed static FFmpeg binary successfully")
     except Exception as e:
         print(f"Failed to install static FFmpeg: {e}")
 
     try:
-        result = subprocess.run(["ffmpeg", "-version"],
+        ffmpeg_bin = os.path.expanduser("~/.local/bin/ffmpeg")
+        cmd = [ffmpeg_bin, "-version"] if os.path.exists(ffmpeg_bin) else ["ffmpeg", "-version"]
+        result = subprocess.run(cmd,
                                 capture_output=True, text=True, check=True)
         print("FFmpeg version:")
         print(result.stdout)
