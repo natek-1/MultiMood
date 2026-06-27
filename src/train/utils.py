@@ -40,7 +40,7 @@ def compute_class_weight(dataset: MELDDataset) -> Tuple[torch.Tensor, torch.Tens
     print("Emotions:")
 
     emotion_map = {idx: emotion for emotion, idx in  dataset.emotion_map.items()}
-    sentiment_map = {idx: sentiment for sentiment, idx in  dataset.sentiment_map}
+    sentiment_map = {idx: sentiment for sentiment, idx in  dataset.sentiment_map.items()}
 
     print("\nClass distribution")
     print("Emotions:")
