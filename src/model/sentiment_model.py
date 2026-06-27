@@ -88,8 +88,8 @@ class MultiModelSentimentModel(nn.Module):
         sentiment = self.sentiment_classifier(fused_features)
 
         return {
-            'emotion': emotion,
-            'sentiment': sentiment
+            'emotions': emotion,
+            'sentiments': sentiment
         }
 
 if __name__ == "__main__":
@@ -111,8 +111,8 @@ if __name__ == "__main__":
             output = model(
                 input_ids, attention_mask, video_tensor, audio_features
             )
-            emotion = output['emotion']
-            sentiment = output['sentiment']
+            emotion = output['emotions']
+            sentiment = output['sentiments']
             print(emotion.shape)
             print(sentiment.shape)
 

@@ -209,3 +209,6 @@ __marimo__/
 
 # Dataset
 meld_dataset/
+
+#tensorbord
+runs/
