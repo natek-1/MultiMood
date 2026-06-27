@@ -9,6 +9,16 @@ from src.model.text_encoder import TextEncoder
 from src.model.video_encoder import VideoEncoder
 
 class MultiModelSentimentModel(nn.Module):
+    '''
+    Multi-modal sentiment model for MELD dataset.
+
+    Args:
+        hidden_dim (int): Dimension of the hidden layers (default: 128).
+        feat_dim (int): Dimension of the feature vectors (default: 256).
+        dropout_rate (float): Dropout rate (default: 0.3).
+        num_classification (int): Number of classification outputs (default: 7).
+        num_sentiments (int): Number of sentiment outputs (default: 3).
+    '''
 
     def __init__(self, hidden_dim=128, feat_dim=256, dropout_rate=0.3,
                         num_classification=7, num_sentiments = 3):
@@ -44,6 +54,18 @@ class MultiModelSentimentModel(nn.Module):
     
     def forward(self, input_ids, attention_mask,
                 video_frames, audio_features) -> Dict[str, torch.Tensor]:
+        '''
+        Forward pass for the multi-modal sentiment model.
+
+        Args:
+            input_ids (torch.Tensor): Input IDs for the BERT model.
+            attention_mask (torch.Tensor): Attention mask for the BERT model.
+            video_frames (torch.Tensor): Video frames for the video encoder.
+            audio_features (torch.Tensor): Audio features for the audio encoder.
+        
+        Returns:
+            Dict[str, torch.Tensor]: Dictionary containing the emotion and sentiment predictions.
+        '''
         
         # text, video, audio features will have shape [batch_size, hidden_dim]
         text_features = self.text_encoder(
