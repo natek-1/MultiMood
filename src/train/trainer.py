@@ -258,16 +258,27 @@ class MultiModalTrainer:
 
 
 if __name__ == "__main__":
-    device = "cpu"
+    device = "cuda"
     model = MultiModelSentimentModel().to(device)
-    dataset = MELDDataset("meld_dataset/dev/dev_sent_emo.csv",
+    val_dataset = MELDDataset("meld_dataset/dev/dev_sent_emo.csv",
                           "meld_dataset/dev/dev_splits_complete",
                           preprocess=model.preprocess)
+    train_dataset = MELDDataset("meld_dataset/train/train_sent_emo.csv",
+                                "meld_dataset/train/train_splits")
     # using dataloader bc batchnorm requires batch size greater than 1
-    dataloader = DataLoader(dataset, batch_size=8)
-    trainer = MultiModalTrainer(model, dataloader, device)
-    trainer.train_epoch()
-    trainer.evaluate(dataloader, 0, 'val')
+    from src.dataset.meld_dataset import collate_fn
+    val_dataloader = DataLoader(val_dataset, batch_size=32, collate_fn=collate_fn
+                            , prefetch_factor=4, num_workers=4                        
+    )
+    train_dataloader = DataLoader(train_dataset, batch_size=32, collate_fn=collate_fn
+                            , prefetch_factor=4, num_workers=4                        
+    )
+    trainer = MultiModalTrainer(model, train_dataloader, device)
+    num_epochs = 45
+    for epoch in range(num_epochs):
+        trainer.train_epoch()
+        trainer.evaluate(val_dataloader, epoch, 'val')
+    
     
 
 
