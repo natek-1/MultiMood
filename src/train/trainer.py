@@ -132,8 +132,6 @@ class MultiModalTrainer:
 
             outputs = self.model(input_ids, attention_mask, 
                                 video_frames, audio_features)
-            print("Output emotion shape: ", outputs['emotions'].shape)
-            print("Output sentiment shape: ", outputs['sentiments'].shape)
         
             emotion_loss = self.emotion_criterion(
                 outputs['emotions'], emotion_labels
@@ -154,9 +152,6 @@ class MultiModalTrainer:
             running_loss['total'] += total_loss.item()
             running_loss['emotion'] += emotion_loss.item()
             running_loss['sentiment'] += sentiment_loss.item()
-            print("Emotion loss: ", emotion_loss.item())
-            print("Sentiment loss: ", sentiment_loss.item())
-            print("Total loss: ", total_loss.item())
 
             self.log_metrics({
                 'total': total_loss.item(),
@@ -192,8 +187,6 @@ class MultiModalTrainer:
                 # make prediction
                 outputs = self.model(input_ids, attention_mask, 
                                     video_frames, audio_features)
-                print("Output emotion shape: ", outputs['emotions'].shape)
-                print("Output sentiment shape: ", outputs['sentiments'].shape)
             
                 emotion_loss = self.emotion_criterion(
                     outputs['emotions'], emotion_labels

@@ -273,11 +273,7 @@ if __name__ == "__main__":
             ("meld_dataset/dev/dev_sent_emo.csv", "meld_dataset/dev/dev_splits_complete"),
             ("meld_dataset/test/test_sent_emo.csv", "meld_dataset/test/output_repeated_splits_test"),
         ]
-    dataset = MELDDataset(datasets[0][0], datasets[0][1])
-    for data in tqdm(iter(dataset), total=len(dataset)):
-        continue
 
-    raise ValueError("test")
     train_loader, dev_loader, test_loader = prepare_dataloader(
         datasets[0][0], datasets[0][1],
         datasets[1][0], datasets[1][1],

@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import List, Tuple
 
 from tqdm import tqdm
 import torch
@@ -17,45 +17,31 @@ def compute_class_weight(dataset: MELDDataset) -> Tuple[torch.Tensor, torch.Tens
         Tuple[torch.Tensor, torch.Tensor]: Tuple containing the emotion and sentiment class weights.
     '''
 
-    emotion_counts = torch.zeros(7)
-    sentiment_counts = torch.zeros(3)
-    skipped = 0
-    total = len(dataset)
+    df = dataset.data
+    emotion_map = dataset.emotion_map
+    sentiment_map = dataset.sentiment_map
 
-    for sample in tqdm(iter(dataset), total=total, leave=False):
-        if sample is None:
-            skipped += 1
-            continue
-        
-        emotion_label = int(sample['emotion_label'].item())
-        sentiment_label = int(sample['sentiment_label'].item())
-
-        emotion_counts[emotion_label] += 1
-        sentiment_counts[sentiment_label] += 1
-    
-    valid = total - skipped
-    print(f"Skipped samples: {skipped}/{total}")
-
-    print("\nClass distribution")
+    print("Class distribution")
     print("Emotions:")
-
-    emotion_map = {idx: emotion for emotion, idx in  dataset.emotion_map.items()}
-    sentiment_map = {idx: sentiment for sentiment, idx in  dataset.sentiment_map.items()}
-
-    print("\nClass distribution")
-    print("Emotions:")
-    for idx, count in enumerate(emotion_counts):
-        print(f"{emotion_map[idx]}: {count/valid:.2f}")
-    
+    emotion_weights = df['Emotion'].value_counts(normalize=True).to_dict()
+    for emotion, weight in emotion_weights.items():
+        print(f"{emotion}: {weight:.4f}")
     print("\nSentiments:")
-    for idx, count in enumerate(sentiment_counts):
-        print(f"{sentiment_map[idx]}: {count/valid:.2f}")
+    sentiment_weights = df['Sentiment'].value_counts(normalize=True).to_dict()
+    for sentiment, weight in sentiment_weights.items():
+        print(f"{sentiment}: {weight:.4f}")
 
-    # class weights normalized
-    emotion_weights = emotion_counts / emotion_counts.sum()
-    sentiment_weights = sentiment_counts / sentiment_counts.sum()
+    ordered_emotion_weights = [0.0] * len(emotion_map)
+    for emotion, idx in emotion_map.items():
+        ordered_emotion_weights[idx] = 1 / emotion_weights[emotion]
+    ordered_emotion_weights = torch.Tensor(ordered_emotion_weights)
 
-    return emotion_weights, sentiment_weights
+    ordered_sentiment_weights = [0.0] * len(sentiment_map)
+    for sentiment, idx in sentiment_map.items():
+        ordered_sentiment_weights[idx] = 1/sentiment_weights[sentiment]
+    ordered_sentiment_weights = torch.Tensor(ordered_sentiment_weights)
+
+    return ordered_emotion_weights, ordered_sentiment_weights
 
 
 
