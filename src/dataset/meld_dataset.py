@@ -215,7 +215,6 @@ class MELDDataset(Dataset):
             }
         except Exception as e:
             print(f"Error processing {idx}: {str(e)}")
-            raise e
             return None
 
 
