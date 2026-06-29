@@ -1,6 +1,6 @@
 import os
 from datetime import datetime
-from typing import Literal, Dict
+from typing import Literal, Dict, Tuple
 
 from tqdm import tqdm
 
@@ -20,6 +20,23 @@ from src.train.utils import compute_class_weight
 
 
 class MultiModalTrainer:
+    '''
+    Trainer class for the multi-modal sentiment model.
+
+    Attributes:
+        model (MultiModelSentimentModel): Multi-modal sentiment model.
+        train_loader (DataLoader): DataLoader for the training data.
+        device (Literal['cpu', 'cuda', 'mps']): Device to train the model on.
+        writer (SummaryWriter): TensorBoard summary writer.
+        global_step (int): Global step counter.
+        optimizer (torch.optim.Optimizer): Optimizer for the model.
+        scheduler (torch.optim.lr_scheduler._LRScheduler): Scheduler for the optimizer.
+        current_train_losses (None | Dict[str, float]): Current training losses.
+        emotion_weights (torch.Tensor): Class weights for the emotion classifier.
+        sentiment_weights (torch.Tensor): Class weights for the sentiment classifier.
+        emotion_criterion (nn.CrossEntropyLoss): Loss function for the emotion classifier.
+        sentiment_criterion (nn.CrossEntropyLoss): Loss function for the sentiment classifier.
+    '''
     def __init__(self, model : MultiModelSentimentModel, train_loader: DataLoader,
                 device: Literal['cpu', 'cuda', 'mps'] = "cpu"):
         
@@ -72,6 +89,18 @@ class MultiModalTrainer:
 
     def log_metrics(self, losses : Dict[str, float], metrics : None | Dict[str, torch.Tensor] = None,
                     phase : Literal['train', 'val', 'test'] = "train", epoch: None | int = None):
+        '''
+        Log metrics to TensorBoard.
+
+        Args:
+            losses (Dict[str, float]): Dictionary containing the losses.
+            metrics (None | Dict[str, torch.Tensor]): Dictionary containing the metrics.
+            phase (Literal['train', 'val', 'test']): Phase of the training.
+            epoch (None | int): Epoch number.
+        
+        Returns:
+            None
+        '''
         
         step = epoch if epoch else self.global_step
         
@@ -113,13 +142,22 @@ class MultiModalTrainer:
                 step
             )
     
-    def train_epoch(self):
+    def train_epoch(self, epoch: int) -> Dict[str, float]:
+        '''
+        Train the model for one epoch.
+
+        Args:
+            epoch (int): Epoch number.
+        
+        Returns:
+            Dict[str, float]: Dictionary containing the average losses for the epoch.
+        '''
         self.model.train()
         running_loss = {
             'total': 0, 'emotion': 0, 'sentiment': 0
         }
         iterator = tqdm(self.train_loader, total=len(self.train_loader), leave=False,
-                    desc="Training")
+                    desc=f"Training: {epoch}")
         for batch in iterator:
             input_ids = batch['input_ids'].to(self.device)
             attention_mask = batch['attention_mask'].to(self.device)
@@ -158,15 +196,25 @@ class MultiModalTrainer:
                 'emotion': emotion_loss.item(),
                 'sentiment': sentiment_loss.item()
             })
-            iterator.set_description(f"Training Loss: {total_loss.item():.4f}")
+            iterator.set_postfix(loss=total_loss.item())
 
             self.global_step += 1
         return {key: value/len(self.train_loader) for key, value in running_loss.items()}
 
 
     def evaluate(self, dataloader: DataLoader, epoch: int,
-                 phase: Literal['val', 'test'] = 'val'):
-        ''' runs on test or validation loader
+                 phase: Literal['val', 'test'] = 'val') -> Tuple[Dict[str, float], Dict[str, torch.Tensor]]:
+        ''' 
+        Evaluate the model on the given data.
+
+        Args:
+            dataloader (DataLoader): DataLoader for the evaluation data.
+            epoch (int): Epoch number.
+            phase (Literal['val', 'test']): Phase of the evaluation.
+        
+        Returns:
+            Tuple[Dict[str, float], Dict[str, torch.Tensor]]: Tuple containing
+            the average losses and metrics for the epoch.
         '''
         self.model.eval()
         running_loss = {'total': 0, 'emotion': 0, 'sentiment': 0}
@@ -264,19 +312,20 @@ if __name__ == "__main__":
                           "meld_dataset/dev/dev_splits_complete",
                           preprocess=model.preprocess)
     train_dataset = MELDDataset("meld_dataset/train/train_sent_emo.csv",
-                                "meld_dataset/train/train_splits")
+                                "meld_dataset/train/train_splits",
+                                preprocess=model.preprocess)
     # using dataloader bc batchnorm requires batch size greater than 1
     from src.dataset.meld_dataset import collate_fn
     val_dataloader = DataLoader(val_dataset, batch_size=32, collate_fn=collate_fn
-                            , prefetch_factor=4, num_workers=4                        
+                            , prefetch_factor=12, num_workers=4                        
     )
     train_dataloader = DataLoader(train_dataset, batch_size=32, collate_fn=collate_fn
-                            , prefetch_factor=4, num_workers=4                        
+                            , prefetch_factor=12, num_workers=4                        
     )
     trainer = MultiModalTrainer(model, train_dataloader, device)
     num_epochs = 45
     for epoch in range(num_epochs):
-        trainer.train_epoch()
+        trainer.train_epoch(epoch)
         trainer.evaluate(val_dataloader, epoch, 'val')
     
     
