@@ -53,13 +53,13 @@ class MELDDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    def _load_video_frames(self, video_path: str, max_frames : int = 30, size : Tuple =(244, 244)) -> torch.Tensor:
+    def _load_video_frames(self, video_path: str, max_frames : int = 120, size : Tuple =(244, 244)) -> torch.Tensor:
         """
         Load video frames from the given video path.
 
         Args:
             video_path (str): Path to the video file.
-            max_frames (int): Maximum number of frames to extract (default: 30).
+            max_frames (int): Maximum number of frames to extract (default: 120).
             size (tuple): Size of the frames to resize to (default: (244, 244)).
         
         Returns:
@@ -106,7 +106,7 @@ class MELDDataset(Dataset):
     
     def _extract_audio_features(self, video_path: str, rate: int = 16000,
                                 n_mels: int = 64, n_fft: int = 1024, hop_length: int = 512,
-                                normalize: bool =True, max_size : int = 300) -> torch.Tensor:
+                                normalize: bool =True, max_size : int = 80) -> torch.Tensor:
         '''
         Extract audio features from the given video path.
 
